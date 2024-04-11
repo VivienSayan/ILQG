@@ -1,0 +1,13 @@
+function [xest,P] = ekfpred(xest,P,ucorr,dt,M)
+
+% ------ prediction -------
+xest = f(xest,ucorr,[0;0],dt); % state propagation
+A = [1 0 -dt*ucorr(1)*sin(xest(3));...
+     0 1 dt*ucorr(1)*cos(xest(3));...
+     0 0 1                    ];
+B = dt*[cos(xest(3)) 0;...
+        sin(xest(3)) 0;...
+        0            1];
+P = A*P*A'+B*M*B'; % covariance progagation
+
+end

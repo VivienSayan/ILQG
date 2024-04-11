@@ -1,0 +1,13 @@
+function [xest,P] = iekfpred(xest,P,ucorr,dt,M)
+
+% ------ prediction -------
+xest = f(xest,ucorr,[0;0],dt); % state propagation
+A = [1             dt*ucorr(2)       0;...
+     -dt*ucorr(2)      1       dt*ucorr(1);...
+     0                 0             1];
+B = dt*[1 0;...
+        0 0;...
+        0 1];
+P = A*P*A'+B*M*B'; % covariance progagation
+
+end
