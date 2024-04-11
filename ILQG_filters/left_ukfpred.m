@@ -1,4 +1,4 @@
-function [xest,P] = leftukfpred(xest,P,ucorr,dt,M)
+function [xest,P] = left_ukfpred(xest,P,ucorr,dt,M)
 
 chi = state2chi(xest(3),xest(1:2));
 chiAnt = chi;

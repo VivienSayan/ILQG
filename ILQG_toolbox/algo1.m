@@ -44,10 +44,8 @@ for t = 2:kmax
             [xest,P] = ekfpred(xest,P,ucorr,dt,M);
         case 'ukf'
             [xest,P] = ukfpred(xest,P,ucorr,dt,M);
-        case'srukf'
-            [xest,S,P] = srukfpred(xest,S,ucorr,dt,sqrtM);
-        case'QOsrukf'
-            [xest,S,P] = QOsrukfpred(xest,S,ucorr,dt,sqrtM);
+        case'sr_ukf'
+            [xest,S,P] = sr_ukfpred(xest,S,ucorr,dt,sqrtM);
         otherwise
             error('unknown filter')
     end
@@ -63,10 +61,8 @@ for t = 2:kmax
                 [xest,P,K] = ekfupdate(xest,P,H,N,z);
             case 'ukf'
                 [xest,P,K] = ukfupdate(xest,P,H,N,z);
-            case 'srukf'
-                [xest,S,P,K] = srukfupdate(xest,S,H,sqrtN,z);
-            case 'QOsrukf'
-                [xest,S,P,K] = QOsrukfupdate(xest,S,H,sqrtN,z);
+            case 'sr_ukf'
+                [xest,S,P,K] = sr_ukfupdate(xest,S,H,sqrtN,z);
             otherwise
                 error('unknown filter')
         end

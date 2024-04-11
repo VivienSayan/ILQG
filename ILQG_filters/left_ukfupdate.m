@@ -1,4 +1,4 @@
-function [xest,P,K] = leftukfupdate(xest,P,H,N,z)
+function [xest,P,K] = left_ukfupdate(xest,P,H,N,z)
 
 chi = state2chi(xest(3),xest(1:2));
 

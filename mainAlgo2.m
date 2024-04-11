@@ -5,7 +5,6 @@ close all;
 
 addpath 'ILQG_toolbox';
 addpath 'ILQG_filters';
-addpath 'ILQG_toolboxQO'
 load('ground_truth.mat','u','Tmax','dt','time','kmax','y_GPS');
 
 % set reference command input u (angular velocity and linear velocity)
@@ -46,14 +45,14 @@ rng(seed);
 xreal0 = XREF(:,1) + randn(3,1);
 % inital estimate
 xest0 = xreal0 + sqrtm(P0)*randn(3,1);
-[Jiekf,XREF_G_iekf,XREAL_G_iekf,XEST_G_iekf,PEST_iekf,UCORR_iekf,MEAS_iekf] = algo2('iekf',XREF,UREF,xreal0,xest0,P0,M,N,Linvgains,Q,R,dt);
+[Jiekf,XREF_G_iekf,XREAL_G_iekf,XEST_G_iekf,PEST_iekf,UCORR_iekf,MEAS_iekf] = algo2('left_ukf',XREF,UREF,xreal0,xest0,P0,M,N,Linvgains,Q,R,dt);
 
 rng(seed);
 % real initial state
 xreal0 = XREF(:,1) + randn(3,1);
 % inital estimate
 xest0 = xreal0 + sqrtm(P0)*randn(3,1);
-[Jiukf,XREF_G_iukf,XREAL_G_iukf,XEST_G_iukf,PEST_iukf,UCORR_iukf,MEAS_iukf] = algo2('left-ukf',XREF,UREF,xreal0,xest0,P0,M,N,Linvgains,Q,R,dt);
+[Jiukf,XREF_G_iukf,XREAL_G_iukf,XEST_G_iukf,PEST_iukf,UCORR_iukf,MEAS_iukf] = algo2('sr_left_ukf',XREF,UREF,xreal0,xest0,P0,M,N,Linvgains,Q,R,dt);
 
 % Pour tout mettre sur ]-pi;pi]
 XREF_iekf = zeros(3,kmax); XREAL_iekf = zeros(3,kmax); XEST_iekf = zeros(3,kmax);

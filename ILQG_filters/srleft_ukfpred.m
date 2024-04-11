@@ -1,4 +1,4 @@
-function [xest,S,P] = lukfpred(xest,S,ucorr,dt,sqrtM)
+function [xest,S,P] = srleft_ukfpred(xest,S,ucorr,dt,sqrtM)
 
 chi = state2chi(xest(3),xest(1:2));
 chiAnt = chi;

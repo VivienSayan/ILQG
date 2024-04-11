@@ -5,7 +5,6 @@ close all;
 
 addpath 'ILQG_toolbox';
 addpath 'ILQG_filters';
-addpath 'ILQG_toolboxQO'
 load('ground_truth.mat','u','Tmax','dt','time','kmax','y_GPS');
 
 % set reference command input u (angular velocity and linear velocity)
@@ -48,14 +47,14 @@ rng(seed);
 xreal0 = XREF(:,1) + randn(3,1);
 % inital estimate
 xest0 = xreal0;%+ sqrtm(P0)*randn(3,1);
-[JLQG,XREAL,XEST,PEST,UCORR,MEAS] = algo1('srukf',XREF,UREF,xreal0,xest0,P0,M,N,Lgains,Q,R,dt);
+[JLQG,XREAL,XEST,PEST,UCORR,MEAS] = algo1('ukf',XREF,UREF,xreal0,xest0,P0,M,N,Lgains,Q,R,dt);
 
 rng(seed);
 % real initial state
 xreal0 = XREF(:,1) + randn(3,1);
 % inital estimate
 xest0 = xreal0;%+ sqrtm(P0)*randn(3,1);
-[JLQG_QO,XREAL_QO,XEST_QO,PEST_QO,UCORR_QO,MEAS_QO] = algo1('QOsrukf',XREF,UREF,xreal0,xest0,P0,M,N,Lgains,Q,R,dt);
+[JLQG_QO,XREAL_QO,XEST_QO,PEST_QO,UCORR_QO,MEAS_QO] = algo1('sr_ukf',XREF,UREF,xreal0,xest0,P0,M,N,Lgains,Q,R,dt);
 
 % RESULTS
 figure();

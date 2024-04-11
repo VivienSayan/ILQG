@@ -38,9 +38,9 @@ dev = logSE2(Id);
 switch filter
     case 'iekf'
         ucorr = uref(:,1) - L(:,:,1)*Gamma(-xref(3,1))*(xest-xref(:,1)); 
-    case 'left-ukf'
+    case 'left_ukf'
         ucorr = uref(:,1) - L(:,:,1)*dev; 
-    case 'left-sr-ukf'
+    case 'sr_left_ukf'
         ucorr = uref(:,1) - L(:,:,1)*dev;
     otherwise
         error('unknown filter')
@@ -65,10 +65,10 @@ for t = 2:kmax
     switch filter
         case 'iekf'
             [xest,P] = iekfpred(xest,P,ucorr,dt,M);
-        case 'left-ukf' % Left-UKF
-            [xest,P] = leftukfpred(xest,P,ucorr,dt,M);
-        case'left-sr-ukf' % Left-Square-Root-UKF
-            [xest,S,P] = lukfpred(xest,S,ucorr,dt,sqrtM);
+        case 'left_ukf' % Left-UKF
+            [xest,P] = left_ukfpred(xest,P,ucorr,dt,M);
+        case'sr_left_ukf' % Left-Square-Root-UKF
+            [xest,S,P] = srleft_ukfpred(xest,S,ucorr,dt,sqrtM);
         otherwise
             error('unknown filter')
     end
@@ -82,10 +82,10 @@ for t = 2:kmax
         switch filter
             case 'iekf'
                 [xest,P,K] = iekfupdate(xest,P,H,N,z);
-            case 'left-ukf'
-                [xest,P,K] = leftukfupdate(xest,P,H,N,z);
-            case 'left-sr-ukf'
-                [xest,S,P,K] = lukfupdate(xest,S,H,sqrtN,z);
+            case 'left_ukf'
+                [xest,P,K] = left_ukfupdate(xest,P,H,N,z);
+            case 'sr_left_ukf'
+                [xest,S,P,K] = srleft_ukfupdate(xest,S,H,sqrtN,z);
             otherwise
                 error('unknown filter')
         end
@@ -106,9 +106,9 @@ for t = 2:kmax
     switch filter
         case 'iekf'
             ucorr = uref(:,t) - L(:,:,t)*Gamma(-xref(3,t))*(xest-xref(:,t));
-        case 'left-ukf'
+        case 'left_ukf'
             ucorr = uref(:,t) - L(:,:,t)*dev;
-        case 'left-sr-ukf'
+        case 'sr_left_ukf'
             ucorr = uref(:,t) - L(:,:,t)*dev;
         otherwise
             error('unknown filter')
