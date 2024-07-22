@@ -1,86 +1,90 @@
-function [J,REAL,EST,PEST,UCORR,MEAS] = algo1(filter,xref,uref,xreal0,xest0,P0,M,N,L,Q,R,dt)
+function [J,XREAL,XEST,PEST,UCORR,MEAS] = algo1(filter,XREF,UREF,xreal0,xest0,P0,Cov_w_real,Cov_v_real,Cov_w,Cov_v,Lt,Q,R,dt)
 % Conventionnal LQG
 
-kmax = size(xref,2); dimx = size(xref,1); dimu = size(uref,1);
+t_end = size(XREF,2); dimx = size(XREF,1); dimu = size(UREF,1);
 xreal = xreal0;
 xest = xest0;
-
 P = P0;
 S = chol(P,'upper');
-sqrtM = chol(M,'upper');
-sqrtN = chol(N,'upper');
-H = [1 0 0;...
-     0 1 0];
 
-obs = zeros(1,kmax);
-DeltaK_obs = 10;
-for i = 1:DeltaK_obs:kmax
+sqrtCov_w_real = chol(Cov_w_real,'upper'); sqrtCov_w = chol(Cov_w,'upper'); dimw = size(Cov_w_real,1);
+sqrtCov_v_real = chol(Cov_v_real,'upper'); sqrtCov_v = chol(Cov_v,'upper'); dimv = size(Cov_v_real,1);
+
+% observation matrix y = Hx
+H = [0 1 0;...
+     0 0 1];
+dimz = size(H,1);
+
+obs = zeros(1,t_end);
+f_obs = 10; % Hz (measurement frequency)
+step = 1/(dt*f_obs);
+for i = 1:round(step):t_end
     obs(i) = 1;
 end
 
-ucorr = uref(:,1) - L(:,:,1)*(xest-xref(:,1)); % corrected command input
+ucorr = UREF(:,1) - Lt(:,:,1)*(xest-XREF(:,1)); % corrected command input
 
-REAL = zeros(3,kmax); REAL(:,1) = xreal;
-EST = zeros(3,kmax); EST(:,1) = xest;
-PEST = zeros(3,3,kmax); PEST(:,:,1) = P;
-UCORR = zeros(2,kmax); UCORR(:,1) = ucorr; 
-MEAS = zeros(2,kmax); MEAS(:,1) = H*xreal + sqrtm(N)*randn(2,1);
-KALGAIN = zeros(3,2,kmax); K = KALGAIN(:,:,1);
+XREAL = zeros(dimx,t_end); XREAL(:,1) = xreal;
+XEST = zeros(dimx,t_end); XEST(:,1) = xest;
+PEST = zeros(dimx,dimx,t_end); PEST(:,:,1) = P;
+UCORR = zeros(dimu,t_end); UCORR(:,1) = ucorr; 
+MEAS = zeros(dimz,t_end); MEAS(:,1) = H*xreal + sqrtCov_v_real*randn(dimz,1);
+KALMAN_GAIN = zeros(dimx,dimz,t_end); K = KALMAN_GAIN(:,:,1);
 
-xbar = xest-xref(:,1);
-ubar = ucorr-uref(:,1);
+xbar = xreal-XREF(:,1); % difference between the true trajectory and the reference trajectory
+ubar = ucorr-UREF(:,1); % difference between the corrected input and the reference input
 J = xbar'*Q*xbar + ubar'*R*ubar;
 
-for t = 2:kmax
+for t = 2:t_end
 
     % ----- real system propagation -----
-    m = sqrtM*randn(2,1);
-    xreal = f(xreal,ucorr,m,dt);
-    REAL(:,t) = xreal;
+    w = sqrtCov_w_real*randn(dimw,1);
+    xreal = f(xreal,ucorr,w,dt);
+    XREAL(:,t) = xreal;
 
     % ----- prediction --------
     switch filter
         case 'ekf'
-            [xest,P] = ekfpred(xest,P,ucorr,dt,M);
+            [xest,P] = ekfpred(xest,P,ucorr,dt,Cov_w);
         case 'ukf'
-            [xest,P] = ukfpred(xest,P,ucorr,dt,M);
+            [xest,P] = ukfpred(xest,P,ucorr,dt,Cov_w);
         case'sr_ukf'
-            [xest,S,P] = sr_ukfpred(xest,S,ucorr,dt,sqrtM);
+            [xest,S,P] = sr_ukfpred(xest,S,ucorr,dt,sqrtCov_w);
         otherwise
             error('unknown filter')
     end
 
     if obs(t) == 1
         % ----- measurement ------
-        z = xreal(1:2) + sqrtm(N)*randn(2,1);
+        z = xreal(2:3) + sqrtCov_v_real*randn(dimz,1);
         MEAS(:,t) = z;
     
         % ----- correction -------
         switch filter
             case 'ekf'
-                [xest,P,K] = ekfupdate(xest,P,H,N,z);
+                [xest,P,K] = ekfupdate(xest,P,H,Cov_v,z);
             case 'ukf'
-                [xest,P,K] = ukfupdate(xest,P,H,N,z);
+                [xest,P,K] = ukfupdate(xest,P,H,Cov_v,z);
             case 'sr_ukf'
-                [xest,S,P,K] = sr_ukfupdate(xest,S,H,sqrtN,z);
+                [xest,S,P,K] = sr_ukfupdate(xest,S,H,sqrtCov_v,z);
             otherwise
                 error('unknown filter')
         end
     
-        EST(:,t) = xest;
+        XEST(:,t) = xest;
         PEST(:,:,t) = P;
-        KALGAIN(:,:,t) = K;
+        KALMAN_GAIN(:,:,t) = K;
     else
-        EST(:,t) = xest;
+        XEST(:,t) = xest;
         PEST(:,:,t) = P;
-        KALGAIN(:,:,t) = K;
+        KALMAN_GAIN(:,:,t) = K;
     end
 
-    ucorr = uref(:,t) - L(:,:,t)*(xest-xref(:,t));
+    ucorr = UREF(:,t) - Lt(:,:,t)*(xest-XREF(:,t));
     UCORR(:,t) = ucorr; 
 
-    xbar = xest-xref(:,t);
-    ubar = ucorr-uref(:,t);
+    xbar = xreal-XREF(:,t);
+    ubar = ucorr-UREF(:,t);
     J = J + xbar'*Q*xbar + ubar'*R*ubar;
 end
 

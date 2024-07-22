@@ -1,21 +1,24 @@
-function [xest,P,K] = ukfupdate(xest,P,H,N,z)
+function [xest,P,K] = ukfupdate(xest,P,H,Cov_v,z)
 
-Paug = blkdiag(P,N); naug = size(Paug,1); dimx = length(xest); dimr = size(N,1); dimz = length(z);
-alpha = 1; beta = 0; kappa = 0;
-[Wm,Wc,lambda] = compute_weights(naug,alpha,beta,kappa);
-xi = sqrt(naug+lambda);
+Paug = blkdiag(P,Cov_v); naug = size(Paug,1); dimx = length(xest); dimv = size(Cov_v,1); dimz = length(z);
+alpha_UT = 1; beta_UT = 0; kappa_UT = 3-naug;
+[Wm,Wc,ksi,KSI,lambda] = compute_weights(naug,alpha_UT,beta_UT,kappa_UT);
 
-% --- current augmented state [x,y,theta,n1,n2] ---
-xaug = [xest(1);xest(2);xest(3);zeros(dimr,1)];
+% --- augmented state [theta,x,y,vx,vy] ---
+xaug = [xest(1);xest(2);xest(3);zeros(dimv,1)];
 
 % ---- generate sigma-points ----
-SigPts = [xaug repmat(xaug,1,naug)-xi*sqrtm(Paug) repmat(xaug,1,naug)+xi*sqrtm(Paug)];
+SigPts_01 = [zeros(naug,1) -KSI*eye(naug,naug) KSI*eye(naug,naug)];
+SigPts = zeros(naug,2*naug+1);
+for j = 1:2*naug+1
+    SigPts(:,j) = xaug(:) + sqrtm(Paug)*SigPts_01(:,j);
+end
 
 % ---- unscented transformation ---
 Z = zeros(dimz,2*naug+1);
 for j = 1:2*naug+1
     rj = SigPts(dimx+1:end,j);
-    Z(:,j) = SigPts(1:2,j) + rj;
+    Z(:,j) = SigPts(2:3,j) + rj;
 end
 
 % --- measurement prediction ----

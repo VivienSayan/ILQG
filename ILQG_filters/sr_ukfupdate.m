@@ -1,30 +1,34 @@
-function [xest,S,P,K] = sr_ukfupdate(xest,S,H,sqrtN,z)
+function [xest,S,P,K] = sr_ukfupdate(xest,S,H,sqrtCov_v,z)
 
-Saug = blkdiag(S,sqrtN); naug = size(Saug,1); dimx = length(xest); dimr = size(sqrtN,1); dimz = length(z);
-alpha = 1; beta = 0; kappa = 0;
-[Wm,Wc,lambda] = compute_weights(naug,alpha,beta,kappa);
-xi = sqrt(naug+lambda);
+Saug = blkdiag(S,sqrtCov_v); naug = size(Saug,1); dimx = length(xest); dimv = size(sqrtCov_v,1); dimz = length(z);
+alpha_UT = 1; beta_UT = 0; kappa_UT = 3-naug;
+[Wm,Wc,ksi,KSI,lambda] = compute_weights(naug,alpha_UT,beta_UT,kappa_UT);
 
-% --- current augmented state [x,y,theta,n1,n2] ---
-xaug = [xest(1);xest(2);xest(3);zeros(dimr,1)];
+% --- augmented state [theta,x,y,vx,vy] ---
+xaug = [xest(1);xest(2);xest(3);zeros(dimv,1)];
 
 % ---- generate sigma-points ----
-SigPts = [xaug repmat(xaug,1,naug)-xi*Saug' repmat(xaug,1,naug)+xi*Saug'];
+SigPts_01 = [zeros(naug,1) -KSI*eye(naug,naug) KSI*eye(naug,naug)];
+SigPts = zeros(naug,2*naug+1);
+for j = 1:2*naug+1
+    SigPts(:,j) = xaug(:) + Saug'*SigPts_01(:,j);
+end
 
 % ---- unscented transformation ---
 Z = zeros(dimz,2*naug+1);
 for j = 1:2*naug+1
     rj = SigPts(dimx+1:end,j);
-    Z(:,j) = SigPts(1:2,j) + rj;
+    Z(:,j) = SigPts(2:3,j) + rj;
 end
 
 % --- measurement prediction ----
 zpred = sum(Wm.*Z,2);
 WZ = sqrt(Wc(2:end)).*(Z(:,2:end)-zpred);
-[~,RSz] = qr(WZ');
-Sz = RSz(1:dimz,1:dimz);
+[~,rSz] = qr(WZ');
+Sz = rSz(1:dimz,1:dimz);
 Uz = sqrt(abs(Wc(1)))*(Z(:,1) - zpred);
 [Sz,~] = cholupdate(Sz,Uz,'-');
+Pz = Sz'*Sz;
 
 % --- cross-covariance ----
 Pxz = zeros(dimx,dimz);
@@ -33,7 +37,6 @@ for j = 1:2*naug+1
 end
 
 % ---- Kalman gain ----
-Pz = Sz'*Sz;
 K = Pxz/Pz;
 
 % ---- correction ----

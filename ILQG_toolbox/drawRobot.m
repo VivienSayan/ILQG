@@ -1,4 +1,7 @@
 function drawRobot(pos,offset_th,L)
+% pos = [theta;x;y] (rad,m,m)
+% offset_th = angle (deg)
+% L = largeur du robot (m)
 
 Pf= [pos(2) pos(3)]';
 thetaf	= pos(1);

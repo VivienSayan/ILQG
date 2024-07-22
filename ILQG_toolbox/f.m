@@ -1,13 +1,18 @@
-function xpred = f(xest,u,m,dt)
-% model of the non-holonomic car
-% xpred = [x; y; theta]
-% u = [linear_vel ; angular_vel]
-% m = [linear_noise; angular_noise]
+function xpred = f(xest,u,w,dt)
+% model of the rigid-body
 
-theta = xest(3) + (u(2)+m(2))*dt;
-x =  xest(1) + (u(1)+m(1))*dt*cos(theta);
-y = xest(2) + (u(1)+m(1))*dt*sin(theta);
+% inputs_______________________________
+% xpred = [theta; x; y] (rad,m,m)
+% u = [vtheta; vx; vy] (rad/s,m/s,m/s)
+% w = [wtheta; wx; wy] (rad/s, m/s, m/s)
 
-xpred = [x;y;theta];
+% output_________________________
+% xpred = [theta; x; y] (rad,m,m)
+
+theta = xest(1) + (u(1)+w(1))*dt;
+x     = xest(2) + (u(2)+w(2))*dt* cos(xest(1));%- (u(3)+w(3))*dt* sin(xest(1));
+y     = xest(3) + (u(2)+w(2))*dt* sin(xest(1));%+ (u(3)+w(3))*dt* cos(xest(1));
+
+xpred = [theta;x;y];
 
 end
