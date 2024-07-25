@@ -14,6 +14,10 @@ for j = 1:2*naug+1
     SigPts(:,j) = xaug(:) + Saug'*SigPts_01(:,j);
 end
 
+% --- optimal quantization ---
+mu = diag([1/20;1/20;1/20])*S; P = S'*S;
+[SigPts,~] = QO(mu(1:1,1:1),100,xaug,P,SigPts,1);
+
 % ---- unscented transformation ---
 Z = zeros(dimz,2*naug+1);
 for j = 1:2*naug+1

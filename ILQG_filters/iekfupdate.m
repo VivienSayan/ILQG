@@ -1,9 +1,9 @@
-function [xest,P,K] = iekfupdate(xest,P,H,N,z)
+function [xest,P,K] = iekfupdate(xest,P,H,Cov_v,z)
 
 % ----- Kalman gain ------
-K = P*H'/(H*P*H'+N);
+K = P*H'/(H*P*H'+Cov_v);
 % ----- correction -------
-xest = xest + Gamma(xest(3))*K*Rot(-xest(3))*(z-H*xest);
+xest = xest + Upsilon(xest(1))*K*Rot(-xest(1)) *(z-H*xest);
 P = P - K*H*P;
 
 end

@@ -1,5 +1,5 @@
 function chi = state2chi(theta,x)
-% embarque theta et x dans matrice de SE(2)
+% embarque theta et x dans matrice SE(2)
 
 Rot = [cos(theta) -sin(theta);...
        sin(theta)  cos(theta)];

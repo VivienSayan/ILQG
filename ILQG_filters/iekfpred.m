@@ -1,13 +1,16 @@
-function [xest,P] = iekfpred(xest,P,ucorr,dt,M)
+function [xest,P] = iekfpred(xest,P,ucorr,dt,Cov_w)
+
+dimx = length(xest);
+dimu = length(ucorr);
 
 % ------ prediction -------
-xest = f(xest,ucorr,[0;0],dt); % state propagation
-A = [1             dt*ucorr(2)       0;...
-     -dt*ucorr(2)      1       dt*ucorr(1);...
-     0                 0             1];
-B = dt*[1 0;...
-        0 0;...
-        0 1];
-P = A*P*A'+B*M*B'; % covariance progagation
+A = [   1              0                0;...
+     -dt*ucorr(3)      1          dt*ucorr(1);...
+      dt*ucorr(2)   -dt*ucorr(1)        1];
+B = dt*eye(dimx,dimu);
+
+xest = f(xest,ucorr,zeros(dimu,1),dt); % state propagation
+
+P = A*P*A'+B*Cov_w*B'; % covariance progagation
 
 end

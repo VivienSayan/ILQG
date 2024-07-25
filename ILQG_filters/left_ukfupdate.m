@@ -1,26 +1,30 @@
-function [xest,P,K] = left_ukfupdate(xest,P,H,N,z)
+function [xest,P,K] = left_ukfupdate(xest,P,H,Cov_v,z)
 
-chi = state2chi(xest(3),xest(1:2));
+chi = state2chi(xest(1),xest(2:3));
 
-Paug = blkdiag(P,N); naug = size(Paug,1); dimx = length(xest); dimr = size(N,1); dimz = length(z);
-alpha = 1; beta = 0; kappa = 0;
-[Wm,Wc,lambda] = compute_weights(naug,alpha,beta,kappa);
-xi = sqrt(naug+lambda);
+Paug = blkdiag(P,Cov_v); naug = size(Paug,1); dimx = length(xest); dimv = size(Cov_v,1); dimz = length(z);
+alpha_UT = 1; beta_UT = 0; kappa_UT = 3-naug;
+[Wm,Wc,ksi,KSI,lambda] = compute_weights(naug,alpha_UT,beta_UT,kappa_UT);
 
-% --- current augmented state [0;0;0; 0;0;0] ---
+% --- current augmented state [0;0;0; ;0;0] ---
 xaug = zeros(naug,1);
 
 % ---- generate sigma-points ----
-SigPts = xi*[xaug -sqrtm(Paug) sqrtm(Paug)];
+SigPts_01 = [zeros(naug,1) -KSI*eye(naug,naug) KSI*eye(naug,naug)];
+SigPts = zeros(naug,2*naug+1);
+for j = 1:2*naug+1
+    SigPts(:,j) = xaug(:) + sqrtm(Paug)*SigPts_01(:,j);
+end
+%SigPts = ksi*[xaug -sqrtm(Paug) sqrtm(Paug)];
 
 % ---- unscented transformation ---
 Z = zeros(dimz,2*naug+1);
-Z(:,1) = h(chi,zeros(length(N),1));
+Z(:,1) = h(chi,zeros(dimv,1));
 for j = 2:2*naug+1
-    xi_j = SigPts(1:dimx,j);
-    rj = SigPts(dimx+1:end,j);
-    chi_j = chi*expSE2(xi_j);
-    Z(:,j) = h(chi_j,rj);
+    ksi_j = SigPts(1:dimx,j);
+    vj = SigPts(dimx+1:end,j);
+    chi_j = chi*expSE2(ksi_j);
+    Z(:,j) = h(chi_j,vj);
 end
 
 % --- measurement prediction ----
@@ -42,8 +46,10 @@ K = Pxz/Pz;
 % ---- correction ----
 ksi_bar = K*(z-zpred);
 chi = chi*expSE2(ksi_bar);
-[Rot,theta,x] = chi2state(chi);
-xest = [x;theta];
+[~,theta,x] = chi2state(chi);
+xest = [theta;x];
 P = P - K*Pz*K';
+J = JacSE2(ksi_bar,'LEFT');
+P = J*P*J';
 
 end

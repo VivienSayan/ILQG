@@ -1,35 +1,44 @@
-function [xest,S,P,K] = srleft_ukfupdate(xest,S,H,sqrtN,z)
+function [xest,S,P,K] = srleft_ukfupdate(xest,S,H,sqrtCov_v,z)
 
-chi = state2chi(xest(3),xest(1:2));
+chi = state2chi(xest(1),xest(2:3));
 
-Saug = blkdiag(S,sqrtN); naug = size(Saug,1); dimx = length(xest); dimr = size(sqrtN,1); dimz = length(z);
-alpha = 1; beta = 0; kappa = 0;
-[Wm,Wc,lambda] = compute_weights(naug,alpha,beta,kappa);
-xi = sqrt(naug+lambda);
+Saug = blkdiag(S,sqrtCov_v); naug = size(Saug,1); dimx = length(xest); dimv = size(sqrtCov_v,1); dimz = length(z);
+alpha_UT = 1; beta_UT = 0; kappa_UT = 3-naug;
+[Wm,Wc,ksi,KSI,lambda] = compute_weights(naug,alpha_UT,beta_UT,kappa_UT);
 
-% --- current augmented state [0;0;0; 0;0;0] ---
+% --- current augmented state [0;0;0 ;0;0] ---
 xaug = zeros(naug,1);
 
 % ---- generate sigma-points ----
-SigPts = xi*[xaug -Saug' Saug'];
+SigPts_01 = [zeros(naug,1) -KSI*eye(naug,naug) KSI*eye(naug,naug)];
+SigPts = zeros(naug,2*naug+1);
+for j = 1:2*naug+1
+    SigPts(:,j) = xaug(:) + Saug'*SigPts_01(:,j);
+end
+%SigPts = ksi*[xaug -sqrtm(Paug) sqrtm(Paug)];
+
+% --- optimal quantization ---
+%mu = diag([1/20;1/20;1/20])*S; P = S'*S;
+%[SigPts,~] = QO(mu(1:1,1:1),100,xaug,P,SigPts,1);
 
 % ---- unscented transformation ---
 Z = zeros(dimz,2*naug+1);
-Z(:,1) = h(chi,zeros(length(sqrtN),1));
+Z(:,1) = h(chi,zeros(dimv,1));
 for j = 2:2*naug+1
     ksi_j = SigPts(1:dimx,j);
-    rj = SigPts(dimx+1:end,j);
+    vj = SigPts(dimx+1:end,j);
     chi_j = chi*expSE2(ksi_j);
-    Z(:,j) = h(chi_j,rj);
+    Z(:,j) = h(chi_j,vj);
 end
 
 % --- measurement prediction ----
 zpred = sum(Wm.*Z,2);
 WZ = sqrt(Wc(2:end)).*(Z(:,2:end)-zpred);
-[~,Rcz] = qr(WZ');
-Sz = Rcz(1:dimz,1:dimz);
+[~,rSz] = qr(WZ');
+Sz = rSz(1:dimz,1:dimz);
 Uz = sqrt(abs(Wc(1)))*(Z(:,1) - zpred);
 [Sz,~] = cholupdate(Sz,Uz,'-');
+Pz = Sz'*Sz;
 
 % --- cross-covariance ----
 Pxz = zeros(dimx,dimz);
@@ -38,13 +47,13 @@ for j = 2:2*naug+1
 end
 
 % ---- Kalman gain ----
-K = Pxz/Sz/Sz';
+K = Pxz/Pz;
 
 % ---- correction ----
 ksi_bar = K*(z-zpred);
 chi = chi*expSE2(ksi_bar);
-[Rot,theta,x] = chi2state(chi);
-xest = [x;theta];
+[~,theta,x] = chi2state(chi);
+xest = [theta;x];
 U = K*Sz';
 for j = 1:dimz
     [S,~] = cholupdate(S,U(:,j),'-');

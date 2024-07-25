@@ -6,196 +6,227 @@ close all;
 addpath 'ILQG_toolbox';
 addpath 'ILQG_filters';
 load('ground_truth.mat','u','Tmax','dt','time','kmax','y_GPS');
+t_end = kmax;
 
 % set reference command input u (angular velocity and linear velocity)
-UREF = zeros(2,kmax);
-UREF(1,:) = u(2,:); UREF(1,1:2) = 0.0001;
-UREF(2,:) = u(1,:); dimu = size(UREF,1);
+UREF = zeros(3,t_end);
+UREF(1,:) = u(1,:); % vtheta (rad/s)
+UREF(2,:) = u(2,:); UREF(2,1:2) = 0.0001; % vx (m/s)
+UREF(3,:) = u(3,:); % vy (m/s)
+dimu = size(UREF,1);
 
 % generate (noise free) reference trajectory based on the reference command input
-xref0 = [0;0;0]; % initial reference state
-m = zeros(2,kmax); % set process noise to zero
-XREF = gentraj(xref0,UREF,m,dt); dimx = size(XREF,1);
+xref0 = [0;0;0]; % initial reference state [theta;x;y] (in rad,m,m)
+W = zeros(dimu,t_end); % set model noise to zero
+XREF = gentraj(xref0,UREF,W,dt); dimx = size(XREF,1);
 
 % compute the L gains via LQR method
-Q = [1   0    0;...
-      0    1  0;...
-      0     0    1]; % state weights
-
-R = [1 0;...
-     0 1]; % input weights
+Q = eye(dimx,dimx); % state weights
+R = eye(dimu,dimu); % input weights
 
 % Compute the gain L of the state-feedback u = -Lx that minimizes the the quadratic cost function
-Linvgains = ilqr(Q,R,XREF,UREF,dt);
-%%
-seed = randi(999999);
-% Kalman parameters
+Lt = ilqr(Q,R,XREF,UREF,dt);
+
+dimz = 2;
+%% Simulation
+clc;
+close all;
+random_seed = randi(10000);
+filter1 = 'iekf';
+filter2 = 'srleft_ukf';
+
+% real noises
+% model noise covariance
+Cov_w_real = [(10*pi/180)^2      0         0;...
+                0             (0.1)^2      0;...
+                0                0        (0.1)^2];
+% observation noise covariance
+Cov_v_real = (0.5)^2*eye(dimz);
+
+% Kalman parameters-------------------------
+% model noise covariance
+Cov_w = [(10*pi/180)^2      0          0;...
+            0             (0.1)^2      0;...
+            0               0        (0.1)^2];
+% observation noise covariance
+Cov_v = (0.5)^2*eye(dimz);
+
 % initial covariance of the estimate
-P0 = [(0.35)^2         0          0;...
-           0         (0.35)^2     0;...
-           0            0      (90*pi/180)^2];
-% process noise
-M = [(0.01)^2        0;...
-        0       (1*pi/180)^2];
-% observation noise
-N = (0.1)^2*eye(2);
+P0 = [(30*pi/180)^2     0         0;...
+           0         (0.3)^2      0;...
+           0            0      (0.3)^2];
+%-------------------------------------------
+Ns = 100;
 
-rng(seed);
+J_f1_log = zeros(1,Ns);
+rng(random_seed);
+for n = 1:Ns
 % real initial state
 xreal0 = XREF(:,1) + randn(3,1);
 % inital estimate
-xest0 = xreal0 + sqrtm(P0)*randn(3,1);
-[Jiekf,XREF_G_iekf,XREAL_G_iekf,XEST_G_iekf,PEST_iekf,UCORR_iekf,MEAS_iekf] = algo2('left_ukf',XREF,UREF,xreal0,xest0,P0,M,N,Linvgains,Q,R,dt);
-
-rng(seed);
-% real initial state
-xreal0 = XREF(:,1) + randn(3,1);
-% inital estimate
-xest0 = xreal0 + sqrtm(P0)*randn(3,1);
-[Jiukf,XREF_G_iukf,XREAL_G_iukf,XEST_G_iukf,PEST_iukf,UCORR_iukf,MEAS_iukf] = algo2('sr_left_ukf',XREF,UREF,xreal0,xest0,P0,M,N,Linvgains,Q,R,dt);
-
-% Pour tout mettre sur ]-pi;pi]
-XREF_iekf = zeros(3,kmax); XREAL_iekf = zeros(3,kmax); XEST_iekf = zeros(3,kmax);
-XREF_iukf = zeros(3,kmax); XREAL_iukf = zeros(3,kmax); XEST_iukf = zeros(3,kmax);
-for t = 1:kmax
-    [~,XREF_iekf(3,t),XREF_iekf(1:2,t)] = chi2state(XREF_G_iekf(:,:,t)); [~,XREF_iukf(3,t),XREF_iukf(1:2,t)] = chi2state(XREF_G_iukf(:,:,t));
-    [~,XREAL_iekf(3,t),XREAL_iekf(1:2,t)] = chi2state(XREAL_G_iekf(:,:,t)); [~,XREAL_iukf(3,t),XREAL_iukf(1:2,t)] = chi2state(XREAL_G_iukf(:,:,t));
-    [~,XEST_iekf(3,t),XEST_iekf(1:2,t)] = chi2state(XEST_G_iekf(:,:,t)); [~,XEST_iukf(3,t),XEST_iukf(1:2,t)] = chi2state(XEST_G_iukf(:,:,t));
+xest0 = xreal0 + [0;0;0];%+ sqrtm(P0)*randn(3,1);
+[JILQG_f1,XREAL_f1,XEST_f1,PEST_f1,UCORR_f1,MEAS_f1,XREF_LG_f1,XREAL_LG_f1,XEST_LG_f1] = algo2(filter1,XREF,UREF,xreal0,xest0,P0,Cov_w_real,Cov_v_real,Cov_w,Cov_v,Lt,Q,R,dt);
+J_f1_log(n) = JILQG_f1;
 end
 
-% RESULTS
+J_f2_log = zeros(1,Ns);
+rng(random_seed);
+for n = 1:Ns
+% real initial state
+xreal0 = XREF(:,1) + randn(3,1);
+% inital estimate
+xest0 = xreal0+ [0;0;0];%+ sqrtm(P0)*randn(3,1);
+[JILQG_f2,XREAL_f2,XEST_f2,PEST_f2,UCORR_f2,MEAS_f2,XREF_LG_f2,XREAL_LG_f2,XEST_LG_f2] = algo2(filter2,XREF,UREF,xreal0,xest0,P0,Cov_w_real,Cov_v_real,Cov_w,Cov_v,Lt,Q,R,dt);
+J_f2_log(n) = JILQG_f2;
+end
+
+%% RESULTS
 figure();
 subplot(121);
-plot(XREF_iekf(1,:),XREF_iekf(2,:),'k','Linewidth',1); grid on; hold on; xlabel("x(m)"); ylabel("y(m)"); hold on;
-plot(MEAS_iekf(1,:),MEAS_iekf(2,:),'.r')
-plot(XREAL_iekf(1,:),XREAL_iekf(2,:),'b')
-plot(XEST_iekf(1,:),XEST_iekf(2,:),'g')
-legend('reference trajectory','measure','real','estimate')
-title('IEKF');
-subplot(122);
-plot(XREF_iukf(1,:),XREF_iukf(2,:),'k','Linewidth',1); grid on; hold on; xlabel("x(m)"); ylabel("y(m)"); hold on;
-plot(MEAS_iukf(1,:),MEAS_iukf(2,:),'.r')
-plot(XREAL_iukf(1,:),XREAL_iukf(2,:),'b')
-plot(XEST_iukf(1,:),XEST_iukf(2,:),'g')
+plot(XREF(2,:),XREF(3,:),'k','Linewidth',1); grid on; hold on; xlabel("x(m)"); ylabel("y(m)"); hold on;
+plot(MEAS_f1(1,1:1:end),MEAS_f1(2,1:1:end),'.r')
+plot(XREAL_f1(2,:),XREAL_f1(3,:),'b')
+plot(XEST_f1(2,:),XEST_f1(3,:),'-g')
 legend('reference trajectory','measure','real state','estimate')
-title('Left-UKF');
+title(filter1)
+subplot(122);
+plot(XREF(2,:),XREF(3,:),'k','Linewidth',1); grid on; hold on; xlabel("x(m)"); ylabel("y(m)"); hold on;
+plot(MEAS_f2(1,:),MEAS_f2(2,:),'.r')
+plot(XREAL_f2(2,:),XREAL_f2(3,:),'b')
+plot(XEST_f2(2,:),XEST_f2(3,:),'-g')
+legend('reference trajectory','measure','real state','estimate')
+title(filter1)
 
-% TRAJECTORY DEVIATION x-xref
-[dev_x_iekf,dev_y_iekf,dev_th_iekf] = ErrorLG(XREAL_G_iekf,XREF_G_iekf,kmax); [dev_x_iukf,dev_y_iukf,dev_th_iukf] = ErrorLG(XREAL_G_iukf,XREF_G_iukf,kmax);
+% TRAJECTORY DEVIATION xreal-xref
+[DEV_TH,DEV_X,DEV_Y] = Error(XREAL_f1,XREF,t_end); [DEV_TH_sr,DEV_X_sr,DEV_Y_sr] = Error(XREAL_f2,XREF,t_end);
 figure();
 subplot(131);
-plot(time,dev_x_iekf); hold on; plot(time,dev_x_iukf);
+plot(time,DEV_X); hold on; plot(time,DEV_X_sr);
 xlabel('time (s)');
-title('|x_{real}-x_{ref}|'); legend('IEKF','Left-UKF');
+ylabel('|x_{real}-x_{ref}| (m)'); legend(filter1,filter2);
 
 subplot(132)
-plot(time,dev_y_iekf); hold on; plot(time,dev_y_iukf);
+plot(time,DEV_Y); hold on; plot(time,DEV_Y_sr);
 xlabel('time (s)');
-title('|y_{real}-y_{ref}|'); legend('IEKF','Left-UKF');
+ylabel('|y_{real}-y_{ref}| (m)'); legend(filter1,filter2);
+title('CONTROL ERROR')
 
 subplot(133)
-plot(time,dev_th_iekf); hold on; plot(time,dev_th_iukf);
+plot(time,DEV_TH*180/pi); hold on; plot(time,DEV_TH_sr*180/pi);
 xlabel('time (s)');
-title('|\theta_{real}-\theta_{ref}|'); legend('IEKF','Left-UKF');
+ylabel('|\theta_{real}-\theta_{ref}| (°)'); legend(filter1,filter2);
 
-% ESTIMATION ERROR xhat-x
-[error_x_iekf,error_y_iekf,error_th_iekf] = ErrorLG(XEST_G_iekf,XREAL_G_iekf,kmax); [error_x_iukf,error_y_iukf,error_th_iukf] = ErrorLG(XEST_G_iukf,XREAL_G_iukf,kmax);
+% ESTIMATION ERROR xhat-xreal
+[EST_ERROR_TH,EST_ERROR_X,EST_ERROR_Y] = Error(XEST_f1,XREAL_f1,t_end); [EST_ERROR_TH_sr,EST_ERROR_X_sr,EST_ERROR_Y_sr] = Error(XEST_f2,XREAL_f2,t_end);
 figure();
 subplot(131);
-plot(time,error_x_iekf); hold on; plot(time,error_x_iukf);
+plot(time,EST_ERROR_X); hold on; plot(time,EST_ERROR_X_sr);
 xlabel('time (s)');
-title('|x_{est}-x_{real}|'); legend('IEKF','Left-UKF');
+ylabel('|x_{est}-x_{real}| (m)'); legend(filter1,filter2);
 
 subplot(132);
-plot(time,error_y_iekf); hold on; plot(time,error_y_iukf);
+plot(time,EST_ERROR_Y); hold on; plot(time,EST_ERROR_Y_sr);
 xlabel('time (s)');
-title('|y_{est}-y_{real}|'); legend('IEKF','Left-UKF');
+ylabel('|y_{est}-y_{real}| (m)'); legend(filter1,filter2);
+title('ESTIMATION ERROR');
 
 subplot(133);
-plot(time,error_th_iekf); hold on; plot(time,error_th_iukf);
+plot(time,EST_ERROR_TH*180/pi); hold on; plot(time,EST_ERROR_TH_sr*180/pi);
 xlabel('time (s)');
-title('|\theta_{est}-\theta_{real}|'); legend('IEKF','Left-UKF');
+ylabel('|\theta_{est}-\theta_{real}| (°)'); legend(filter1,filter2);
 
 %% STANDARD DEVIATION OF THE ESTIMATE
-sigma_x_iekf = squeeze(sqrt(PEST_iekf(1,1,:)))'; sigma_x_iukf = squeeze(sqrt(PEST_iukf(1,1,:)))';
-sigma_y_iekf = squeeze(sqrt(PEST_iekf(2,2,:)))'; sigma_y_iukf = squeeze(sqrt(PEST_iukf(2,2,:)))'; 
-sigma_th_iekf = squeeze(sqrt(PEST_iekf(3,3,:)))'; sigma_th_iukf = squeeze(sqrt(PEST_iukf(3,3,:)))';
+SIGMA_X = squeeze(sqrt(PEST_f1(2,2,:)))'; SIGMA_X_sr = squeeze(sqrt(PEST_f2(2,2,:)))';
+SIGMA_Y = squeeze(sqrt(PEST_f1(3,3,:)))'; SIGMA_Y_sr = squeeze(sqrt(PEST_f2(3,3,:)))'; 
+SIGMA_TH = squeeze(sqrt(PEST_f1(1,1,:)))'; SIGMA_TH_sr = squeeze(sqrt(PEST_f2(1,1,:)))';
 
 figure();
 subplot(131);
-plot(time, sigma_x_iekf ); hold on; plot(time, sigma_x_iukf );
+plot(time, SIGMA_X ); hold on; 
+plot(time, SIGMA_X_sr );
 xlabel('t (s)');
-ylabel('\sigma_x (m)'); legend('IEKF','Left-UKF');
+ylabel('\sigma_x (m)'); legend(filter1,filter2);
 
 subplot(132);
-plot(time, sigma_y_iekf ); hold on; plot(time, sigma_y_iukf );
+plot(time, SIGMA_Y ); hold on; 
+plot(time, SIGMA_Y_sr );
 xlabel('t (s)');
-ylabel('\sigma_y (m)'); legend('IEKF','Left-UKF');
+ylabel('\sigma_y (m)'); legend(filter1,filter2);
+title('UNCERTAINTY OF THE ESTIMATE')
 
 subplot(133);
-plot(time, sigma_th_iekf*180/pi ); hold on; plot(time, sigma_th_iukf*180/pi );
+plot(time, SIGMA_TH*180/pi ); hold on; 
+plot(time, SIGMA_TH_sr*180/pi );
 xlabel('t (s)');
-ylabel('\sigma_{\theta} (°)'); legend('IEKF','Left-UKF');
+ylabel('\sigma_{\theta} (°)'); legend(filter1,filter2);
 
 %% CONFIDENCE INTERVAL 3*sigma
 figure();
 subplot(121)
-plot(time,XREAL_iekf(1,:),'k','linewidth',1); hold on; grid on;
-plot(time,XEST_iekf(1,:),'b');
-plot(time,XREAL_iekf(1,:)+3*sigma_x_iekf,'--g');
-plot(time,XREAL_iekf(1,:)-3*sigma_x_iekf,'--g');
+plot(time,XREAL_f1(2,:),'k','linewidth',1); hold on; grid on;
+plot(time,XEST_f1(2,:),'b');
+plot(time,XREAL_f1(2,:)+3*SIGMA_X,'--g');
+plot(time,XREAL_f1(2,:)-3*SIGMA_X,'--g');
+title(filter1);
 legend('real trajectory','estimate','confidence interval 3\sigma');
 xlabel('t (s)'); ylabel('x (m)');
 subplot(122)
-plot(time,XREAL_iukf(1,:),'k','linewidth',1); hold on; grid on;
-plot(time,XEST_iukf(1,:),'b');
-plot(time,XREAL_iukf(1,:)+3*sigma_x_iukf,'--g');
-plot(time,XREAL_iukf(1,:)-3*sigma_x_iukf,'--g');
+plot(time,XREAL_f2(2,:),'k','linewidth',1); hold on; grid on;
+plot(time,XEST_f2(2,:),'b');
+plot(time,XREAL_f2(2,:)+3*SIGMA_X_sr,'--g');
+plot(time,XREAL_f2(2,:)-3*SIGMA_X_sr,'--g');
+title(filter2);
 legend('real trajectory','estimate','confidence interval 3\sigma');
 xlabel('t (s)'); ylabel('x (m)');
 
 figure();
 subplot(121)
-plot(time,XREAL_iekf(2,:),'k','linewidth',1); hold on; grid on;
-plot(time,XEST_iekf(2,:),'b');
-plot(time,XREAL_iekf(2,:)+3*sigma_y_iekf,'--g');
-plot(time,XREAL_iekf(2,:)-3*sigma_y_iekf,'--g');
+plot(time,XREAL_f1(3,:),'k','linewidth',1); hold on; grid on;
+plot(time,XEST_f1(3,:),'b');
+plot(time,XREAL_f1(3,:)+3*SIGMA_Y,'--g');
+plot(time,XREAL_f1(3,:)-3*SIGMA_Y,'--g');
+title(filter1);
 legend('real trajectory','estimate','confidence interval 3\sigma');
 xlabel('t (s)'); ylabel('y (m)');
 subplot(122)
-plot(time,XREAL_iukf(2,:),'k','linewidth',1); hold on; grid on;
-plot(time,XEST_iukf(2,:),'b');
-plot(time,XREAL_iukf(2,:)+3*sigma_y_iukf,'--g');
-plot(time,XREAL_iukf(2,:)-3*sigma_y_iukf,'--g');
+plot(time,XREAL_f2(3,:),'k','linewidth',1); hold on; grid on;
+plot(time,XEST_f2(3,:),'b');
+plot(time,XREAL_f2(3,:)+3*SIGMA_Y_sr,'--g');
+plot(time,XREAL_f2(3,:)-3*SIGMA_Y_sr,'--g');
+title(filter2);
 legend('real trajectory','estimate','confidence interval 3\sigma');
 xlabel('t (s)'); ylabel('y (m)');
 
 figure();
 subplot(121)
-plot(time,XREAL_iekf(3,:)*180/pi,'k','linewidth',1); hold on; grid on;
-plot(time,XEST_iekf(3,:)*180/pi,'b');
-plot(time,(XREAL_iekf(3,:)+3*sigma_th_iekf)*180/pi,'--g');
-plot(time,(XREAL_iekf(3,:)-3*sigma_th_iekf)*180/pi,'--g');
+plot(time,XREAL_f1(1,:)*180/pi,'k','linewidth',1); hold on; grid on;
+plot(time,XEST_f1(1,:)*180/pi,'b');
+plot(time,(XREAL_f1(1,:)+3*SIGMA_TH)*180/pi,'--g');
+plot(time,(XREAL_f1(1,:)-3*SIGMA_TH)*180/pi,'--g');
+title(filter1);
 legend('real trajectory','estimate','confidence interval 3\sigma');
 xlabel('t (s)'); ylabel('\theta (°)');
 subplot(122)
-plot(time,XREAL_iukf(3,:)*180/pi,'k','linewidth',1); hold on; grid on;
-plot(time,XEST_iukf(3,:)*180/pi,'b');
-plot(time,(XEST_iukf(3,:)+3*sigma_th_iukf)*180/pi,'--g');
-plot(time,(XREAL_iukf(3,:)-3*sigma_th_iukf)*180/pi,'--g');
+plot(time,XREAL_f2(1,:)*180/pi,'k','linewidth',1); hold on; grid on;
+plot(time,XEST_f2(1,:)*180/pi,'b');
+plot(time,(XREAL_f2(1,:)+3*SIGMA_TH_sr)*180/pi,'--g');
+plot(time,(XREAL_f2(1,:)-3*SIGMA_TH_sr)*180/pi,'--g');
+title(filter2);
 legend('real trajectory','estimate','confidence interval 3\sigma');
 xlabel('t (s)'); ylabel('\theta (°)');
 
 %% Animation
 
 figure();
+offset_th = 0;
+L = 0.1;
 
-for t = 1:kmax
-    plot(XREF_iekf(1,:),XREF_iekf(2,:),'k'); grid on; hold on; xlabel("x(m)"); ylabel("y(m)");
-    plot(XEST_iekf(1,:),XEST_iekf(2,:),'g')
-    plot(XREAL_iekf(1,:),XREAL_iekf(2,:),'b')
+for k = 1:t_end
+    plot(XREF(2,:),XREF(3,:),'k'); grid on; hold on; xlabel("x(m)"); ylabel("y(m)");
+    plot(XEST_f1(2,:),XEST_f1(3,:),'g')
+    plot(XREAL_f1(2,:),XREAL_f1(3,:),'b')
 
-    draw_car(XREAL_iekf(:,t));
+    drawRobot(XEST_f1(:,k),offset_th,L);
     pause(dt)
     clf;
 end

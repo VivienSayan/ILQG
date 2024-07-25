@@ -14,6 +14,10 @@ for j = 1:2*naug+1
     SigPts(:,j) = xaug(:) + Saug'*SigPts_01(:,j);
 end
 
+% --- optimal quantization ---
+%mu = diag([1/20;1/20;1/20])*S; P = S'*S;
+%[SigPts,~] = QO(mu(1:1,1:1),100,xaug,P,SigPts,1);
+
 % ---- unscented transformation -----
 for j = 1:2*naug+1
     xj = SigPts(1:dimx,j);
@@ -25,8 +29,8 @@ end
 xest = sum(Wm.*SigPts(1:dimx,:),2);
 % ---- covariance -----
 WSigPts = sqrt(Wc(2:end)).*(SigPts(1:dimx,2:end)-xest);
-[~,Rs] = qr(WSigPts');
-S = Rs(1:dimx,1:dimx);
+[~,rS] = qr(WSigPts');
+S = rS(1:dimx,1:dimx);
 Ux = sqrt(abs(Wc(1)))*(SigPts(1:dimx,1) - xest);
 [S,~] = cholupdate(S,Ux,'-');
 P = S'*S;

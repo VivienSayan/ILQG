@@ -1,123 +1,134 @@
-function [J,REF_LG,REAL_LG,EST_LG,PEST,UCORR,MEAS] = algo2(filter,xref,uref,xreal0,xest0,P0,M,N,L,Q,R,dt)
+function [J,XREAL,XEST,PEST,UCORR,MEAS,XREF_LG,XREAL_LG,XEST_LG] = algo2(filter,XREF,UREF,xreal0,xest0,P0,Cov_w_real,Cov_v_real,Cov_w,Cov_v,Lt,Q,R,dt)
 % Invariant LQG
 
-kmax = size(xref,2); dimx = size(xref,1); dimu = size(uref,1);
+t_end = size(XREF,2); dimx = size(XREF,1); dimu = size(UREF,1);
 xreal = xreal0;
 xest = xest0;
-
 P = P0;
 S = chol(P,'upper');
-sqrtM = chol(M,'upper');
-sqrtN = chol(N,'upper');
-H = [1 0 0;...
-     0 1 0];
 
-obs = zeros(1,kmax);
-DeltaK_obs = 10;
-for i = 1:DeltaK_obs:kmax
+sqrtCov_w_real = chol(Cov_w_real,'upper'); sqrtCov_w = chol(Cov_w,'upper'); dimw = size(Cov_w_real,1);
+sqrtCov_v_real = chol(Cov_v_real,'upper'); sqrtCov_v = chol(Cov_v,'upper'); dimv = size(Cov_v_real,1);
+
+% observation matrix y = Hx
+H = [0 1 0;...
+     0 0 1];
+dimz = size(H,1);
+
+obs = zeros(1,t_end);
+f_obs = 10; % Hz (measurement frequency)
+step = 1/(dt*f_obs);
+for i = 1:round(step):t_end
     obs(i) = 1;
 end
 
-REF_LG = zeros(3,3,kmax);
-xref_lg = zeros(3,kmax);
-for t = 1:kmax
-    chi = state2chi(xref(3,t),xref(1:2,t));
-    REF_LG(:,:,t) = chi;
-    [~,theta,x] = chi2state(chi);
-    xref_lg(:,t) = [x;theta];
+% convert xref(t) into its equivalent in SE(2)
+XREF_LG = zeros(dimx,dimx,t_end);
+for t = 1:t_end
+    XREF_LG(:,:,t) = state2chi(XREF(1,t),XREF(2:3,t));
 end
 
-REAL_LG = zeros(3,3,kmax); REAL_LG(:,:,1) = state2chi(xreal(3),xreal(1:2));
-EST_LG = zeros(3,3,kmax); EST_LG(:,:,1) = state2chi(xest(3),xest(1:2));
-PEST = zeros(3,3,kmax); PEST(:,:,1) = P;
-
-Id = invSE2(REF_LG(1:3,1:3,1))*EST_LG(1:3,1:3,1);
-dev = logSE2(Id);
-%devx = xest(1) - xref(1,1); devy = xest(2) - xref(2,1); devth = atan2(Id(2,1),Id(1,1)); dev = [devx;devy;devth];
+XREAL = zeros(dimx,t_end); XREAL(:,1) = xreal;
+XEST = zeros(dimx,t_end); XEST(:,1) = xest;
+XREAL_LG = zeros(dimx,dimx,t_end); XREAL_LG(:,:,1) = state2chi(xreal(1),xreal(2:3));
+XEST_LG = zeros(dimx,dimx,t_end); XEST_LG(:,:,1) = state2chi(xest(1),xest(2:3));
+PEST = zeros(dimx,dimx,t_end); PEST(:,:,1) = P;
+MEAS = zeros(dimz,t_end); MEAS(:,1) = xreal(2:3) + sqrtCov_v_real*randn(dimz,1);
+KALMAN_GAIN = zeros(dimx,dimz,t_end); K = KALMAN_GAIN(:,:,1);
 
 switch filter
     case 'iekf'
-        ucorr = uref(:,1) - L(:,:,1)*Gamma(-xref(3,1))*(xest-xref(:,1)); 
+        ucorr = UREF(:,1) - Lt(:,:,1)*Upsilon(-XREF(1,1)) * (xest-XREF(:,1)); 
     case 'left_ukf'
-        ucorr = uref(:,1) - L(:,:,1)*dev; 
-    case 'sr_left_ukf'
-        ucorr = uref(:,1) - L(:,:,1)*dev;
+        Id = invSE2(XREF_LG(1:3,1:3,1)) *XEST_LG(1:3,1:3,1);
+        dev = logSE2(Id);
+        %devx = xest(2) - XREF(2,1); devy = xest(3) - XREF(3,1); devth = atan2(Id(2,1),Id(1,1)); dev = [devth;devx;devy];
+        ucorr = UREF(:,1) - Lt(:,:,1)*dev; 
+    case 'srleft_ukf'
+        Id = invSE2(XREF_LG(1:3,1:3,1)) *XEST_LG(1:3,1:3,1);
+        dev = logSE2(Id);
+        %devx = xest(2) - XREF(2,1); devy = xest(3) - XREF(3,1); devth = atan2(Id(2,1),Id(1,1)); dev = [devth;devx;devy];
+        ucorr = UREF(:,1) - Lt(:,:,1)*dev;
     otherwise
         error('unknown filter')
 end
 
-UCORR = zeros(2,kmax); UCORR(:,1) = ucorr; 
-MEAS = zeros(2,kmax); MEAS(:,1) = H*xreal + sqrtm(N)*randn(2,1);
-KALGAIN = zeros(3,2,kmax); K = KALGAIN(:,:,1);
+UCORR = zeros(dimu,t_end); UCORR(:,1) = ucorr; 
 
-xbar = xest-xref(:,1);
-ubar = ucorr-uref(:,1);
-J = xbar'*Q*xbar + ubar'*R*ubar;
+xbar = xreal-XREF(:,1); % difference between the true trajectory and the reference trajectory
+xbarloc = Upsilon(-xest(1))*xbar;
+ubar = ucorr-UREF(:,1); % difference between the corrected input and the reference input
+J = xbarloc'*Q*xbarloc + ubar'*R*ubar;
 
-for t = 2:kmax
+for t = 2:t_end
 
     % ----- real system propagation -----
-    m = sqrtm(M)*randn(2,1);
-    xreal = f(xreal,ucorr,m,dt);
-    REAL_LG(:,:,t) = state2chi(xreal(3),xreal(1:2));
+    w = sqrtCov_w_real*randn(dimw,1);
+    xreal = f(xreal,ucorr,w,dt);
+    XREAL(:,t) = xreal;
+    XREAL_LG(:,:,t) = state2chi(xreal(1),xreal(2:3));
 
     % ----- prediction --------
     switch filter
         case 'iekf'
-            [xest,P] = iekfpred(xest,P,ucorr,dt,M);
+            [xest,P] = iekfpred(xest,P,ucorr,dt,Cov_w);
         case 'left_ukf' % Left-UKF
-            [xest,P] = left_ukfpred(xest,P,ucorr,dt,M);
-        case'sr_left_ukf' % Left-Square-Root-UKF
-            [xest,S,P] = srleft_ukfpred(xest,S,ucorr,dt,sqrtM);
+            [xest,P] = left_ukfpred(xest,P,ucorr,dt,Cov_w);
+        case'srleft_ukf' % Left-Square-Root-UKF
+            [xest,S,P] = srleft_ukfpred(xest,S,ucorr,dt,sqrtCov_w);
         otherwise
             error('unknown filter')
     end
 
     if obs(t) == 1
         % ----- measurement ------
-        z = xreal(1:2) + sqrtm(N)*randn(2,1);
+        z = xreal(2:3) + sqrtCov_v_real*randn(dimz,1);
         MEAS(:,t) = z;
     
         % ----- correction -------
         switch filter
             case 'iekf'
-                [xest,P,K] = iekfupdate(xest,P,H,N,z);
+                [xest,P,K] = iekfupdate(xest,P,H,Cov_v,z);
             case 'left_ukf'
-                [xest,P,K] = left_ukfupdate(xest,P,H,N,z);
-            case 'sr_left_ukf'
-                [xest,S,P,K] = srleft_ukfupdate(xest,S,H,sqrtN,z);
+                [xest,P,K] = left_ukfupdate(xest,P,H,Cov_v,z);
+            case 'srleft_ukf'
+                [xest,S,P,K] = srleft_ukfupdate(xest,S,H,sqrtCov_v,z);
             otherwise
                 error('unknown filter')
         end
     
-        EST_LG(:,:,t) = state2chi(xest(3),xest(1:2));
+        XEST(:,t) = xest;
+        XEST_LG(:,:,t) = state2chi(xest(1),xest(2:3));
         PEST(:,:,t) = P;
-        KALGAIN(:,:,t) = K;
+        KALMAN_GAIN(:,:,t) = K;
     else
-        EST_LG(:,:,t) = state2chi(xest(3),xest(1:2));
+        XEST(:,t) = xest;
+        XEST_LG(:,:,t) = state2chi(xest(1),xest(2:3));
         PEST(:,:,t) = P;
-        KALGAIN(:,:,t) = K;
+        KALMAN_GAIN(:,:,t) = K;
     end
-
-    Id = invSE2(REF_LG(1:3,1:3,t))*EST_LG(1:3,1:3,t);
-    dev = logSE2(Id);
-    %devx = xest(1) - xref(1,t); devy = xest(2) - xref(2,t); devth = atan2(Id(2,1),Id(1,1)); dev = [devx;devy;devth];
 
     switch filter
         case 'iekf'
-            ucorr = uref(:,t) - L(:,:,t)*Gamma(-xref(3,t))*(xest-xref(:,t));
+            ucorr = UREF(:,t) - Lt(:,:,t)*Upsilon(-XREF(1,t)) * (xest-XREF(:,t));
         case 'left_ukf'
-            ucorr = uref(:,t) - L(:,:,t)*dev;
-        case 'sr_left_ukf'
-            ucorr = uref(:,t) - L(:,:,t)*dev;
+            Id = invSE2(XREF_LG(1:3,1:3,t)) *XEST_LG(1:3,1:3,t);
+            dev = logSE2(Id);
+            %devx = xest(2) - XREF(2,t); devy = xest(3) - XREF(3,t); devth = atan2(Id(2,1),Id(1,1)); dev = [devth;devx;devy];
+            ucorr = UREF(:,t) - Lt(:,:,t)*dev;
+        case 'srleft_ukf'
+            Id = invSE2(XREF_LG(1:3,1:3,t)) *XEST_LG(1:3,1:3,t);
+            dev = logSE2(Id);
+            %devx = xest(2) - XREF(2,t); devy = xest(3) - XREF(3,t); devth = atan2(Id(2,1),Id(1,1)); dev = [devth;devx;devy];
+            ucorr = UREF(:,t) - Lt(:,:,t)*dev;
         otherwise
             error('unknown filter')
     end
     UCORR(:,t) = ucorr; 
 
-    xbar = xest-xref(:,t);
-    xbarloc = Gamma(-xest(3))*xbar;
-    ubar = ucorr-uref(:,t);
+    xbar = xreal-XREF(:,t);
+    xbarloc = Upsilon(-xest(1))*xbar;
+    ubar = ucorr-UREF(:,t);
     J = J + xbarloc'*Q*xbarloc + ubar'*R*ubar;
 end
 
