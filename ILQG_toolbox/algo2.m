@@ -74,7 +74,7 @@ for t = 2:t_end
             [xest,P] = iekfpred(xest,P,ucorr,dt,Cov_w);
         case 'left_ukf' % Left-UKF
             [xest,P] = left_ukfpred(xest,P,ucorr,dt,Cov_w);
-        case'srleft_ukf' % Left-Square-Root-UKF
+        case'srleft_ukf' % Square-Root-Left-UKF
             [xest,S,P] = srleft_ukfpred(xest,S,ucorr,dt,sqrtCov_w);
         otherwise
             error('unknown filter')

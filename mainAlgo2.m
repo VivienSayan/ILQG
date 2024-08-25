@@ -29,7 +29,7 @@ Lt = ilqr(Q,R,XREF,UREF,dt);
 
 dimz = 2;
 %% Simulation
-clc;
+%clc;
 close all;
 random_seed = randi(10000);
 filter1 = 'iekf';
@@ -41,7 +41,7 @@ Cov_w_real = [(10*pi/180)^2      0         0;...
                 0             (0.1)^2      0;...
                 0                0        (0.1)^2];
 % observation noise covariance
-Cov_v_real = (0.5)^2*eye(dimz);
+Cov_v_real = (0.1)^2*eye(dimz);
 
 % Kalman parameters-------------------------
 % model noise covariance
@@ -49,7 +49,7 @@ Cov_w = [(10*pi/180)^2      0          0;...
             0             (0.1)^2      0;...
             0               0        (0.1)^2];
 % observation noise covariance
-Cov_v = (0.5)^2*eye(dimz);
+Cov_v = (0.1)^2*eye(dimz);
 
 % initial covariance of the estimate
 P0 = [(30*pi/180)^2     0         0;...
@@ -98,40 +98,42 @@ legend('reference trajectory','measure','real state','estimate')
 title(filter1)
 
 % TRAJECTORY DEVIATION xreal-xref
-[DEV_TH,DEV_X,DEV_Y] = Error(XREAL_f1,XREF,t_end); [DEV_TH_sr,DEV_X_sr,DEV_Y_sr] = Error(XREAL_f2,XREF,t_end);
+%[DEV_TH_f1,DEV_X_f1,DEV_Y_f1] = Error(XREAL_f1,XREF,t_end); [DEV_TH_f2,DEV_X_f2,DEV_Y_f2] = Error(XREAL_f2,XREF,t_end);
+[DEV_TH_f1,DEV_X_f1,DEV_Y_f1] = ErrorLG(XREAL_LG_f1,XREF_LG_f1,t_end); [DEV_TH_f2,DEV_X_f2,DEV_Y_f2] = ErrorLG(XREAL_LG_f2,XREF_LG_f2,t_end);
 figure();
 subplot(131);
-plot(time,DEV_X); hold on; plot(time,DEV_X_sr);
+plot(time,DEV_X_f1); hold on; plot(time,DEV_X_f2);
 xlabel('time (s)');
 ylabel('|x_{real}-x_{ref}| (m)'); legend(filter1,filter2);
 
 subplot(132)
-plot(time,DEV_Y); hold on; plot(time,DEV_Y_sr);
+plot(time,DEV_Y_f1); hold on; plot(time,DEV_Y_f2);
 xlabel('time (s)');
 ylabel('|y_{real}-y_{ref}| (m)'); legend(filter1,filter2);
 title('CONTROL ERROR')
 
 subplot(133)
-plot(time,DEV_TH*180/pi); hold on; plot(time,DEV_TH_sr*180/pi);
+plot(time,DEV_TH_f1*180/pi); hold on; plot(time,DEV_TH_f2*180/pi);
 xlabel('time (s)');
 ylabel('|\theta_{real}-\theta_{ref}| (°)'); legend(filter1,filter2);
 
 % ESTIMATION ERROR xhat-xreal
-[EST_ERROR_TH,EST_ERROR_X,EST_ERROR_Y] = Error(XEST_f1,XREAL_f1,t_end); [EST_ERROR_TH_sr,EST_ERROR_X_sr,EST_ERROR_Y_sr] = Error(XEST_f2,XREAL_f2,t_end);
+%[EST_ERROR_TH_f1,EST_ERROR_X_f1,EST_ERROR_Y_f1] = Error(XEST_f1,XREAL_f1,t_end); [EST_ERROR_TH_f2,EST_ERROR_X_f2,EST_ERROR_Y_f2] = Error(XEST_f2,XREAL_f2,t_end);
+[EST_ERROR_TH_f1,EST_ERROR_X_f1,EST_ERROR_f1] = ErrorLG(XEST_LG_f1,XREAL_LG_f1,t_end); [EST_ERROR_TH_f2,EST_ERROR_X_f2,EST_ERROR_Y_f2] = ErrorLG(XEST_LG_f2,XREAL_LG_f2,t_end);
 figure();
 subplot(131);
-plot(time,EST_ERROR_X); hold on; plot(time,EST_ERROR_X_sr);
+plot(time,EST_ERROR_X_f1); hold on; plot(time,EST_ERROR_X_f2);
 xlabel('time (s)');
 ylabel('|x_{est}-x_{real}| (m)'); legend(filter1,filter2);
 
 subplot(132);
-plot(time,EST_ERROR_Y); hold on; plot(time,EST_ERROR_Y_sr);
+plot(time,EST_ERROR_f1); hold on; plot(time,EST_ERROR_Y_f2);
 xlabel('time (s)');
 ylabel('|y_{est}-y_{real}| (m)'); legend(filter1,filter2);
 title('ESTIMATION ERROR');
 
 subplot(133);
-plot(time,EST_ERROR_TH*180/pi); hold on; plot(time,EST_ERROR_TH_sr*180/pi);
+plot(time,EST_ERROR_TH_f1*180/pi); hold on; plot(time,EST_ERROR_TH_f2*180/pi);
 xlabel('time (s)');
 ylabel('|\theta_{est}-\theta_{real}| (°)'); legend(filter1,filter2);
 
@@ -196,6 +198,12 @@ plot(time,XREAL_f2(3,:)-3*SIGMA_Y_sr,'--g');
 title(filter2);
 legend('real trajectory','estimate','confidence interval 3\sigma');
 xlabel('t (s)'); ylabel('y (m)');
+
+for tmp = 1:t_end
+    [~,XEST_f1(1,tmp),~] = chi2state(XEST_LG_f1(:,:,tmp));
+    [~,XREAL_f1(1,tmp),~] = chi2state(XREAL_LG_f1(:,:,tmp));
+    [~,XREAL_f2(1,tmp),~] = chi2state(XREAL_LG_f2(:,:,tmp));
+end
 
 figure();
 subplot(121)
