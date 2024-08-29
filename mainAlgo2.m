@@ -5,7 +5,7 @@ close all;
 
 addpath 'ILQG_toolbox';
 addpath 'ILQG_filters';
-load('ground_truth.mat','u','Tmax','dt','time','kmax','y_GPS');
+load('traj_angle_var_extreme.mat','u','Tmax','dt','time','kmax','y_GPS');
 t_end = kmax;
 
 % set reference command input u (angular velocity and linear velocity)
@@ -41,7 +41,7 @@ Cov_w_real = [(10*pi/180)^2      0         0;...
                 0             (0.1)^2      0;...
                 0                0        (0.1)^2];
 % observation noise covariance
-Cov_v_real = (0.1)^2*eye(dimz);
+Cov_v_real = (0.3)^2*eye(dimz);
 
 % Kalman parameters-------------------------
 % model noise covariance
@@ -49,14 +49,14 @@ Cov_w = [(10*pi/180)^2      0          0;...
             0             (0.1)^2      0;...
             0               0        (0.1)^2];
 % observation noise covariance
-Cov_v = (0.1)^2*eye(dimz);
+Cov_v = (0.3)^2*eye(dimz);
 
 % initial covariance of the estimate
 P0 = [(30*pi/180)^2     0         0;...
            0         (0.3)^2      0;...
            0            0      (0.3)^2];
 %-------------------------------------------
-Ns = 100;
+Ns = 500;
 
 J_f1_log = zeros(1,Ns);
 rng(random_seed);
@@ -80,6 +80,12 @@ xest0 = xreal0+ [0;0;0];%+ sqrtm(P0)*randn(3,1);
 J_f2_log(n) = JILQG_f2;
 end
 
+mean(J_f1_log)
+mean(J_f2_log)
+
+std(J_f1_log)
+std(J_f2_log)
+
 %% RESULTS
 figure();
 subplot(121);
@@ -95,7 +101,7 @@ plot(MEAS_f2(1,:),MEAS_f2(2,:),'.r')
 plot(XREAL_f2(2,:),XREAL_f2(3,:),'b')
 plot(XEST_f2(2,:),XEST_f2(3,:),'-g')
 legend('reference trajectory','measure','real state','estimate')
-title(filter1)
+title(filter2)
 
 % TRAJECTORY DEVIATION xreal-xref
 %[DEV_TH_f1,DEV_X_f1,DEV_Y_f1] = Error(XREAL_f1,XREF,t_end); [DEV_TH_f2,DEV_X_f2,DEV_Y_f2] = Error(XREAL_f2,XREF,t_end);
@@ -227,7 +233,7 @@ xlabel('t (s)'); ylabel('\theta (°)');
 
 figure();
 offset_th = 0;
-L = 0.1;
+L = 0.5;
 
 for k = 1:t_end
     plot(XREF(2,:),XREF(3,:),'k'); grid on; hold on; xlabel("x(m)"); ylabel("y(m)");
