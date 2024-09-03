@@ -5,7 +5,7 @@ close all;
 
 addpath 'ILQG_toolbox';
 addpath 'ILQG_filters';
-load('traj_angle_var_extreme.mat','u','Tmax','dt','time','kmax','y_GPS');
+load('traj_angle_var_small.mat','u','Tmax','dt','time','kmax','y_GPS','trajReal');
 t_end = kmax;
 
 % set reference command input u (angular velocity and linear velocity)
@@ -35,7 +35,7 @@ random_seed = randi(10000);
 filter1 = 'iekf';
 filter2 = 'srleft_ukf';
 
-% real noises
+% real noises-------------------------------
 % model noise covariance
 Cov_w_real = [(10*pi/180)^2      0         0;...
                 0             (0.1)^2      0;...
@@ -51,12 +51,12 @@ Cov_w = [(10*pi/180)^2      0          0;...
 % observation noise covariance
 Cov_v = (0.3)^2*eye(dimz);
 
-% initial covariance of the estimate
+% ----- initial covariance of the estimate
 P0 = [(30*pi/180)^2     0         0;...
            0         (0.3)^2      0;...
            0            0      (0.3)^2];
 %-------------------------------------------
-Ns = 500;
+Ns = 1;
 
 J_f1_log = zeros(1,Ns);
 rng(random_seed);
@@ -64,7 +64,7 @@ for n = 1:Ns
 % real initial state
 xreal0 = XREF(:,1) + randn(3,1);
 % inital estimate
-xest0 = xreal0 + [0;0;0];%+ sqrtm(P0)*randn(3,1);
+xest0 = xreal0 + 0* sqrtm(P0)*randn(3,1);
 [JILQG_f1,XREAL_f1,XEST_f1,PEST_f1,UCORR_f1,MEAS_f1,XREF_LG_f1,XREAL_LG_f1,XEST_LG_f1] = algo2(filter1,XREF,UREF,xreal0,xest0,P0,Cov_w_real,Cov_v_real,Cov_w,Cov_v,Lt,Q,R,dt);
 J_f1_log(n) = JILQG_f1;
 end
@@ -75,17 +75,20 @@ for n = 1:Ns
 % real initial state
 xreal0 = XREF(:,1) + randn(3,1);
 % inital estimate
-xest0 = xreal0+ [0;0;0];%+ sqrtm(P0)*randn(3,1);
+xest0 = xreal0+ + 0* sqrtm(P0)*randn(3,1);
 [JILQG_f2,XREAL_f2,XEST_f2,PEST_f2,UCORR_f2,MEAS_f2,XREF_LG_f2,XREAL_LG_f2,XEST_LG_f2] = algo2(filter2,XREF,UREF,xreal0,xest0,P0,Cov_w_real,Cov_v_real,Cov_w,Cov_v,Lt,Q,R,dt);
 J_f2_log(n) = JILQG_f2;
 end
 
+disp('J iekf: ')
 mean(J_f1_log)
+disp('J left-ukf: ')
 mean(J_f2_log)
 
-std(J_f1_log)
-std(J_f2_log)
+std(J_f1_log);
+std(J_f2_log);
 
+Jf1f2_mat = [J_f1_log',J_f2_log'];
 %% RESULTS
 figure();
 subplot(121);
@@ -120,12 +123,13 @@ title('CONTROL ERROR')
 
 subplot(133)
 plot(time,DEV_TH_f1*180/pi); hold on; plot(time,DEV_TH_f2*180/pi);
+plot(time,5/100*DEV_TH_f1(1)*ones(size(time)));
 xlabel('time (s)');
 ylabel('|\theta_{real}-\theta_{ref}| (°)'); legend(filter1,filter2);
 
 % ESTIMATION ERROR xhat-xreal
 %[EST_ERROR_TH_f1,EST_ERROR_X_f1,EST_ERROR_Y_f1] = Error(XEST_f1,XREAL_f1,t_end); [EST_ERROR_TH_f2,EST_ERROR_X_f2,EST_ERROR_Y_f2] = Error(XEST_f2,XREAL_f2,t_end);
-[EST_ERROR_TH_f1,EST_ERROR_X_f1,EST_ERROR_f1] = ErrorLG(XEST_LG_f1,XREAL_LG_f1,t_end); [EST_ERROR_TH_f2,EST_ERROR_X_f2,EST_ERROR_Y_f2] = ErrorLG(XEST_LG_f2,XREAL_LG_f2,t_end);
+[EST_ERROR_TH_f1,EST_ERROR_X_f1,EST_ERROR_Y_f1] = ErrorLG(XEST_LG_f1,XREAL_LG_f1,t_end); [EST_ERROR_TH_f2,EST_ERROR_X_f2,EST_ERROR_Y_f2] = ErrorLG(XEST_LG_f2,XREAL_LG_f2,t_end);
 figure();
 subplot(131);
 plot(time,EST_ERROR_X_f1); hold on; plot(time,EST_ERROR_X_f2);
@@ -133,7 +137,7 @@ xlabel('time (s)');
 ylabel('|x_{est}-x_{real}| (m)'); legend(filter1,filter2);
 
 subplot(132);
-plot(time,EST_ERROR_f1); hold on; plot(time,EST_ERROR_Y_f2);
+plot(time,EST_ERROR_Y_f1); hold on; plot(time,EST_ERROR_Y_f2);
 xlabel('time (s)');
 ylabel('|y_{est}-y_{real}| (m)'); legend(filter1,filter2);
 title('ESTIMATION ERROR');
@@ -142,6 +146,24 @@ subplot(133);
 plot(time,EST_ERROR_TH_f1*180/pi); hold on; plot(time,EST_ERROR_TH_f2*180/pi);
 xlabel('time (s)');
 ylabel('|\theta_{est}-\theta_{real}| (°)'); legend(filter1,filter2);
+
+% Norme infinie (erreur d'estimation maximale sur 1 suivi de trajectoire)
+norm_inf_f1_est_th = norm(EST_ERROR_TH_f1*180/pi,Inf)
+norm_inf_f1_est_x = norm(EST_ERROR_X_f1,Inf)
+norm_inf_f1_est_y = norm(EST_ERROR_Y_f1,Inf)
+
+norm_inf_f2_est_th = norm(EST_ERROR_TH_f2*180/pi,Inf)
+norm_inf_f2_est_x = norm(EST_ERROR_X_f2,Inf)
+norm_inf_f2_est_y = norm(EST_ERROR_Y_f2,Inf)
+
+% Norme infinie (deviation maximale sur 1 suivi de trajectoire)
+norm_inf_f1_dev_th = norm(DEV_TH_f1*180/pi,Inf)
+norm_inf_f1_dev_x = norm(DEV_X_f1,Inf)
+norm_inf_f1_dev_y = norm(DEV_Y_f1,Inf)
+
+norm_inf_f2_dev_th = norm(DEV_TH_f2*180/pi,Inf)
+norm_inf_f2_dev_x = norm(DEV_X_f2,Inf)
+norm_inf_f2_dev_y = norm(DEV_Y_f2,Inf)
 
 %% STANDARD DEVIATION OF THE ESTIMATE
 SIGMA_X = squeeze(sqrt(PEST_f1(2,2,:)))'; SIGMA_X_sr = squeeze(sqrt(PEST_f2(2,2,:)))';
@@ -237,10 +259,10 @@ L = 0.5;
 
 for k = 1:t_end
     plot(XREF(2,:),XREF(3,:),'k'); grid on; hold on; xlabel("x(m)"); ylabel("y(m)");
-    plot(XEST_f1(2,:),XEST_f1(3,:),'g')
-    plot(XREAL_f1(2,:),XREAL_f1(3,:),'b')
+    plot(XEST_f2(2,:),XEST_f2(3,:),'g')
+    plot(XREAL_f2(2,:),XREAL_f2(3,:),'b')
 
-    drawRobot(XEST_f1(:,k),offset_th,L);
+    drawRobot(XREAL_f2(:,k),offset_th,L);
     pause(dt)
     clf;
 end
