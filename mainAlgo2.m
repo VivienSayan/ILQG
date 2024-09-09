@@ -5,7 +5,7 @@ close all;
 
 addpath 'ILQG_toolbox';
 addpath 'ILQG_filters';
-load('traj_angle_var_small.mat','u','Tmax','dt','time','kmax','y_GPS','trajReal');
+load('traj_angle_var_high.mat','u','Tmax','dt','time','kmax','y_GPS','trajReal');
 t_end = kmax;
 
 % set reference command input u (angular velocity and linear velocity)
