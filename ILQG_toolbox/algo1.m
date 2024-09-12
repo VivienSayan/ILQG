@@ -16,7 +16,7 @@ H = [0 1 0;...
 dimz = size(H,1);
 
 obs = zeros(1,t_end);
-f_obs = 10; % Hz (measurement frequency)
+f_obs = 1; % Hz (measurement frequency)
 step = 1/(dt*f_obs);
 for i = 1:round(step):t_end
     obs(i) = 1;

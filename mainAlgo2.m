@@ -41,7 +41,7 @@ Cov_w_real = [(10*pi/180)^2      0         0;...
                 0             (0.1)^2      0;...
                 0                0        (0.1)^2];
 % observation noise covariance
-Cov_v_real = (0.3)^2*eye(dimz);
+Cov_v_real = (0.5)^2*eye(dimz);
 
 % Kalman parameters-------------------------
 % model noise covariance
@@ -49,7 +49,7 @@ Cov_w = [(10*pi/180)^2      0          0;...
             0             (0.1)^2      0;...
             0               0        (0.1)^2];
 % observation noise covariance
-Cov_v = (0.3)^2*eye(dimz);
+Cov_v = (0.5)^2*eye(dimz);
 
 % ----- initial covariance of the estimate
 P0 = [(30*pi/180)^2     0         0;...

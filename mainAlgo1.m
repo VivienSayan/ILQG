@@ -5,7 +5,7 @@ close all;
 
 addpath 'ILQG_toolbox';
 addpath 'ILQG_filters';
-load('ground_truth.mat','u','Tmax','dt','time','kmax','y_GPS');
+load('traj_angle_var_high.mat','u','Tmax','dt','time','kmax','y_GPS','trajReal');
 t_end = kmax;
 
 % set reference command input u (angular velocity and linear velocity)
@@ -30,7 +30,7 @@ Lt = clqr(Q,R,XREF,UREF,dt);
 dimz = 2;
 %% Simulation
 close all; clc;
-random_seed = 5377;%randi(10000);
+random_seed = randi(10000);
 filter1 = 'ekf';
 filter2 = 'sr_ukf';
 
@@ -55,23 +55,39 @@ P0 = [(30*pi/180)^2     0         0;...
            0         (0.3)^2      0;...
            0            0      (0.3)^2];
 %-------------------------------------------
+Ns = 1;
 
+J_f1_log = zeros(1,Ns);
 rng(random_seed);
+for n = 1:Ns
 % real initial state
 xreal0 = XREF(:,1) + randn(3,1);
 % inital estimate
-xest0 = xreal0 + [0;0;0];%+ sqrtm(P0)*randn(3,1);
+xest0 = xreal0 + 0* sqrtm(P0)*randn(3,1);
 [JLQG_f1,XREAL_f1,XEST_f1,PEST_f1,UCORR_f1,MEAS_f1,XREF_LG_f1,XREAL_LG_f1,XEST_LG_f1] = algo1(filter1,XREF,UREF,xreal0,xest0,P0,Cov_w_real,Cov_v_real,Cov_w,Cov_v,Lt,Q,R,dt);
+J_f1_log(n) = JLQG_f1;
+end
 
+J_f2_log = zeros(1,Ns);
 rng(random_seed);
+for n = 1:Ns
 % real initial state
 xreal0 = XREF(:,1) + randn(3,1);
 % inital estimate
-xest0 = xreal0 + [0;0;0];%+ sqrtm(P0)*randn(3,1);
+xest0 = xreal0 + 0* sqrtm(P0)*randn(3,1);
 [JLQG_f2,XREAL_f2,XEST_f2,PEST_f2,UCORR_f2,MEAS_f2,XREF_LG_f2,XREAL_LG_f2,XEST_LG_f2] = algo1(filter2,XREF,UREF,xreal0,xest0,P0,Cov_w_real,Cov_v_real,Cov_w,Cov_v,Lt,Q,R,dt);
+J_f2_log(n) = JLQG_f2;
+end
 
-JLQG_f1
-JLQG_f2
+disp('J ekf: ')
+mean(J_f1_log)
+disp('J ukf: ')
+mean(J_f2_log)
+
+std(J_f1_log);
+std(J_f2_log);
+
+Jf1f2_mat = [J_f1_log',J_f2_log'];
 
 %% RESULTS
 figure();

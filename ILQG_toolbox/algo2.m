@@ -16,7 +16,7 @@ H = [0 1 0;...
 dimz = size(H,1);
 
 obs = zeros(1,t_end);
-f_obs = 10; % Hz (measurement frequency)
+f_obs = 1; % Hz (measurement frequency)
 step = 1/(dt*f_obs);
 for i = 1:round(step):t_end
     obs(i) = 1;
@@ -118,7 +118,9 @@ for t = 2:t_end
             ucorr = UREF(:,t) - Lt(:,:,t)*dev;
         case 'srleft_ukf'
             Id = invSE2(XREF_LG(1:3,1:3,t)) *XEST_LG(1:3,1:3,t);
-            dev = logSE2(Id);
+            [~,theta_err,x_err] = chi2state(Id);
+            dev = [theta_err;x_err];
+            %dev = logSE2(Id);
             %devx = xest(2) - XREF(2,t); devy = xest(3) - XREF(3,t); devth = atan2(Id(2,1),Id(1,1)); dev = [devth;devx;devy];
             ucorr = UREF(:,t) - Lt(:,:,t)*dev;
         otherwise

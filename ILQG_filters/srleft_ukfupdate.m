@@ -15,7 +15,6 @@ SigPts = zeros(naug,2*naug+1);
 for j = 1:2*naug+1
     SigPts(:,j) = xaug(:) + Saug'*SigPts_01(:,j);
 end
-%SigPts = ksi*[xaug -sqrtm(Paug) sqrtm(Paug)];
 
 % --- optimal quantization ---
 %mu = diag([1/20;1/20;1/20])*S; P = S'*S;

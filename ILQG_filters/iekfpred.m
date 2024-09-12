@@ -3,7 +3,7 @@ function [xest,P] = iekfpred(xest,P,u,dt,Cov_w)
 dimx = length(xest);
 dimu = length(u);
 
-w = zeros(3,1);
+w = zeros(dimu,1);
 eps = 30*pi/180;
 if u(1)*dt < eps
     l = u(2)*dt;
