@@ -5,7 +5,7 @@ close all;
 
 addpath 'ILQG_toolbox';
 addpath 'ILQG_filters';
-load('traj_one_loop.mat','u','Tmax','dt','time','kmax','y_GPS','trajReal');
+load('traj_angle_var_extreme.mat','u','Tmax','dt','time','kmax','y_GPS','trajReal');
 t_end = kmax;
 
 % set reference command input u (angular velocity and linear velocity)
@@ -57,7 +57,7 @@ P0 = [(30*pi/180)^2     0         0;...
            0         (0.3)^2      0;...
            0            0      (0.3)^2];
 %-------------------------------------------
-Ns = 1;
+Ns = 100;
 
 J_f1_log = zeros(1,Ns);
 %rng(seed);
@@ -97,7 +97,7 @@ end
 disp('_____')
 disp(['J iekf: ',num2str(mean(J_f1_log)),' ± ',num2str(std(J_f1_log))])
 disp(['J left-ukf: ',num2str(mean(J_f2_log)),' ± ',num2str(std(J_f2_log))])
-disp(['J left-ukf: ',num2str(mean(J_f3_log)),' ± ',num2str(std(J_f3_log))])
+disp(['J left-ukf (QO): ',num2str(mean(J_f3_log)),' ± ',num2str(std(J_f3_log))])
 
 %save('tmp.mat');
 %% BOXPLOT RESULTS (over the Monte-Carlos)

@@ -1,4 +1,4 @@
-function [xest,S,P,K] = srleft_ukfupdate(xest,S,H,sqrtCov_v,z)
+function [xest,S,P,K] = srleft_ukfupdate_QO(xest,S,H,sqrtCov_v,z)
 
 chi = state2chi(xest(1),xest(2:3));
 
@@ -18,7 +18,7 @@ end
 
 % --- optimal quantization ---
 mu = diag([1/20;1/20;1/20])*S; P = S'*S; 
-[SigPts,~] = QO(mu(1:1,1:1),100,xaug,P,SigPts,1);
+[SigPts,~] = QOtmp(mu([1],[1]),100,xaug,P,SigPts,[1]);
 
 % ---- unscented transformation ---
 Z = zeros(dimz,2*naug+1);
