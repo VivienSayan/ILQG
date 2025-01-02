@@ -19,7 +19,7 @@ end
 
 % --- optimal quantization ----
 mu = diag([1/20;1/20;1/20])*S; P = S'*S; 
-[SigPts,~] = QOtmp(mu([1],[1]),100,xaug,P,SigPts,[1]);
+[SigPts,~] = QO(mu([1],[1]),100,xaug,P,SigPts,[1]);
 
 % ----- mean prediction -----
 chi = chi*expSE2([ucorr(1);ucorr(2);ucorr(3)]*dt); 
